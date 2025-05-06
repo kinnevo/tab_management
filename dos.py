@@ -10,11 +10,14 @@ def main_page():
 
     # Function to handle key presses
     def handle_key(e):
-        if e.args.get('key') == 'Enter' and not e.args.get('shiftKey'):
-            text = message_input.value.strip()
-            if text:
-                message_input.value = ''
+        if e.args.get('key') == 'Enter':
+            if e.args.get('shiftKey'):
+                # Allow default behavior (newline) for Shift+Enter
+                return
+            # For Enter without Shift, send the message
+            if message_input.value.strip():
                 asyncio.create_task(send_message())
+                e.prevent_default()  # Prevent default Enter behavior
 
     # Create a refreshable component to display messages
     @ui.refreshable
@@ -65,11 +68,12 @@ def main_page():
         # Input area (bottom)
         with ui.row().classes('w-full mt-4'):
             # Set width hint to ensure flex-grow works predictably
-            message_input = ui.input(placeholder='Type your message...').props('outlined').classes('flex-grow').style('width: calc(100% - 80px);')
+            message_input = ui.input(placeholder='Type your message...') \
+                .props('outlined type=textarea rows=3') \
+                .classes('flex-grow') \
+                .style('width: calc(100% - 80px); min-height: 80px; resize: vertical;')
             ui.button('Send', on_click=send_message).props('color=primary')
-
-        # Also send message when pressing Enter key in the input field
-        message_input.on('keydown.enter', send_message)
+            message_input.on('keydown', handle_key)
 
 if __name__ in {"__main__", "__mp_main__"}:
     # ui.run starts the NiceGUI server
