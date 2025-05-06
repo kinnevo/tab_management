@@ -8,7 +8,6 @@ messages = []
 @ui.page('/')
 def main_page():
 
-
     # Function to handle key presses
     def handle_key(e):
         if e.args.get('key') == 'Enter' and not e.args.get('shiftKey'):
@@ -17,14 +16,13 @@ def main_page():
                 message_input.value = ''
                 asyncio.create_task(send_message())
 
-
     # Create a refreshable component to display messages
     @ui.refreshable
     def display_messages():
         # Container for messages with scrolling capability
         # The card itself needs an ID or a class to target it reliably with JS
         # Ensure the card height is fixed and overflow is set
-        with ui.card().classes('w-full h-64 overflow-auto my-chat-card').style('background-color: grey; border: 20px solid green; border-radius: 0;'):
+        with ui.card().classes('w-full h-64 overflow-auto my-chat-card').style('background-color: grey; border: 20px solid green; border-radius: 0;') as chat_card:
             if messages:
                 # Use a column to stack messages vertically within the card
                 # This helps ensure the scrollHeight is calculated correctly
@@ -36,6 +34,7 @@ def main_page():
             else:
                 # Added text-center class for centering
                 ui.label('No messages yet').classes('text-center').style('font-size: 12px; color: white; margin: 20px;')
+            return chat_card
 
     # Main layout within the defined page
     with ui.column().classes('w-full max-w-3xl mx-auto'):
@@ -43,7 +42,7 @@ def main_page():
         ui.label('Chat Box').classes('text-2xl font-bold my-4')
 
         # Display messages area (top text area)
-        display_messages()
+        chat_card = display_messages()
 
         # Define send_message BEFORE using it
         async def send_message():
@@ -55,27 +54,13 @@ def main_page():
                 message_input.value = ''
 
                 # Refresh the messages display on the page
-                display_messages.refresh()
+                chat_card = display_messages.refresh()
 
-                # *** IMPORTANT FIX FOR SCROLLING ***
                 # Add a small delay to allow the browser's DOM to update
-                # after the refresh before attempting to scroll.
-                # A very small value like 0.01 or 0.05 seconds is often enough.
                 await asyncio.sleep(0.01)
 
-                # Auto-scroll to bottom when new messages are added
-                # This code runs *after* the UI is refreshed and the server loop is active
-                # Awaiting ui.run_javascript is now safe because we are on a defined page.
-                await ui.run_javascript('''
-                    const cards = document.getElementsByClassName('my-chat-card');
-                    if (cards.length > 0) {
-                        // Assuming the first element with the class is the chat card
-                        const chatCard = cards[0];
-                        // Scroll to the bottom of the element
-                        chatCard.scrollTop = chatCard.scrollHeight;
-                    }
-                ''', timeout=1.0) # Added timeout for robustness
-
+                # Scroll to bottom using ui.scroll_to
+                await ui.run_javascript(f'document.querySelector(".my-chat-card").scrollTo(0, document.querySelector(".my-chat-card").scrollHeight)')
 
         # Input area (bottom)
         with ui.row().classes('w-full mt-4'):
@@ -85,7 +70,6 @@ def main_page():
 
         # Also send message when pressing Enter key in the input field
         message_input.on('keydown.enter', send_message)
-
 
 if __name__ in {"__main__", "__mp_main__"}:
     # ui.run starts the NiceGUI server
