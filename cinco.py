@@ -66,14 +66,42 @@ user_info = {'name': None, 'avatar': None, 'user_id': 0, 'session_id': 0, 'dialo
 @ui.page('/')
 def main_page():
 
+    def print_dialog():
+        # Create a dialog window to display conversation history
+        dialog_window = ui.dialog()
+        
+        with dialog_window:
+            with ui.card().classes('w-full max-w-3xl mx-auto'):
+                ui.label('Conversation History').classes('text-2xl font-bold mb-4')
+                
+                # Display each message in the dialog
+                for msg in dialog_messages:
+                    with ui.card().classes('my-2 p-2'):
+                        # Header with role and timestamp
+                        with ui.row().classes('justify-between items-center'):
+                            ui.markdown(f"Role: {msg['role'].capitalize()}").classes('font-bold')
+                            if msg['timestamp']:
+                                ui.markdown(f"Time: {msg['timestamp']}").classes('text-sm text-gray-500')
+                        
+                        # Message content
+                        ui.markdown(msg['content']).classes('mt-2 break-words')
+                        
+                        # Metadata footer
+                        with ui.expansion('Show details').classes('mt-2'):
+                            ui.label(f"Message ID: {msg['message_id']}")
+                            #ui.label(f"Status: {msg['status']}")
+                            #ui.label(f"Tokens: {msg['metadata'].get('tokens_used', 'N/A')}")
+                            if msg['role'] == 'assistant':
+                                ui.label(f"Model: {msg['metadata'].get('model', 'N/A')}")
+                                ui.label(f"Temperature: {msg['metadata'].get('temperature', 'N/A')}")
+                
+                # Close button at the bottom
+                with ui.row().classes('w-full justify-end mt-4'):
+                    ui.button('Close', on_click=dialog_window.close).props('outline')
+        
+        dialog_window.open()
+
     async def call_chatgpt_api():
-
-    # def call_chatgpt():
-        print('call_chatgpt')
-        print(dialog)
-        print(dialog_messages)
-        print("\n")
-
         # Configure OpenAI API settings
         openai.api_key = os.getenv("OPENAI_API_KEY")
         
@@ -94,7 +122,6 @@ def main_page():
                 temperature=0.7,
                 max_tokens=1000
             )
-            print(f'response: {response}')
 
             # Extract assistant's response
             assistant_message = response.choices[0].message.content
@@ -115,13 +142,17 @@ def main_page():
                     'parent_message_id': None
                 }
             })
-            #with ui.column().classes('w-full'):
-            assistant_response = response.choices[0].message.content or ''
-            #ui.label(assistant_response).style('font-size: 12px; padding: 8px; margin: 4px; background-color: white; border-radius: 4px; word-break: break-word;')
 
+            # Display assistant's response directly
+            if assistant_message:
+                with scroll.classes('bg-gray-200'):
+                    ui.markdown(assistant_message).classes('text-2xl p-2 m-1 bg-gray-200 rounded-lg break-words')
+                
+                scroll.scroll_to(percent=1e6)
+                message_input.value = ''
 
-            print(assistant_message)
-            print("\n")
+            spinner.visible = False
+            send_button.visible = True
 
             return assistant_message
 
@@ -142,16 +173,35 @@ def main_page():
     user_info['session_id'] = session_id
     user_info['dialog_id'] = 1
 
-    #Header
-    with ui.header().classes('bg-primary text-white'):
-        ui.label('Reference Chat').classes('text-2xl font-bold')
+    spinner = ui.spinner('audio', size='lg').classes('fixed bottom-1/2 left-1/2 transform -translate-x-1/2 translate-y-1/2 z-50')
+    spinner.visible = False
 
-    with ui.row().classes('w-full no-wrap items-center'):
+    #Header
+    with ui.header().classes('h-[10vh] bg-primary text-white'):
+        ui.label('Reference Chat').classes('text-2xl font-bold')
+        ui.button('Print', on_click=print_dialog).classes('bg-white text-blue')
+
+    #ui.add_head_html('<style>body, html { height: 100%; margin: 0; overflow: hidden; }</style>')
+
+    #with ui.dialog(value=True) as dialog, ui.card().classes('w-full min-h-[100%]'):
+    #with ui.row().classes('w-full h-[80%] no-wrap items-center'):
+
+    with ui.row().classes('h-[75vh] w-[90%] h-screen[90%] text-2xl'):
         # Create a scroll area for messages
-        scroll = ui.scroll_area().classes('w-[95%] mx-auto h-64 bg-white border-[20px] border-green-500 rounded-lg')
+        #scroll = ui.label().classes('w-[95%] mx-auto h-1/2 bg-white border-[20px] border-green-500 rounded-lg')
+
+
+        scroll = ui.scroll_area().classes('w-[95%] mx-auto h-full bg-white border-[10px] border-blue-500 rounded-lg')
+        #scroll = ui.scroll_area().classes( 'h-screen[90%] w-1/2 border-4 border-blue-500 rounded-lg flex-grow')
+
+    #with ui.row().classes('w-full h-[80%] no-wrap items-center'):
+    #   scroll1 = ui.scroll_area().classes( 'h4 border-4 w-[15%] border-blue-500 rounded-lg')
+
+
+
 
     #footer
-    with ui.footer().classes('bg-gray-200 text-white'):
+    with ui.footer().classes('h-[10vh] bg-gray-200 text-white'):
 
             # User Avatar (optional)
             with ui.avatar():
@@ -162,36 +212,40 @@ def main_page():
                     if e.args.get('shiftKey'):
                         return
                     if message_input.value.strip():
-                        asyncio.create_task(send_message())
+                        asyncio.create_task(send_message(message_input.value, 'user'))
                         # e.prevent_default()
  
             message_input = ui.textarea(placeholder='Type your message...') \
-               .classes('flex-grow mx-2') \
+               .classes('flex-grow mx-2 text-2xl') \
                .props('rounded outlined dense rows=3 auto-grow')
             
             # send a message to the chat
             
-            async def send_message():
-                print(f'send: {message_input.value}')
+            async def send_message(input_text, role):
+                spinner.visible = True
+                send_button.visible = False
 
                 user_message = {
                     'role': 'user',
-                    'content': message_input.value,
+                    'content': input_text,
                     'timestamp': None,
                     'message_id': None,
                     'status': ''
                 }
-            
+
                 dialog_messages.append(user_message)
                 with scroll.classes('bg-gray-200'):
-                    ui.label(message_input.value).style('font-size: 12px; padding: 8px; margin: 4px; background-color: white; border-radius: 4px; word-break: break-word;')
-
+                    with ui.row().classes('w-full'):
+                        ui.markdown(user_message['content']).classes('ml-auto w-2/3 text-2xl p-2 m-1 bg-blue-500 text-white rounded-lg break-words')
+        
                 scroll.scroll_to(percent=1e6)
                 message_input.value = ''
                 await call_chatgpt_api()
+                #spinner.visible = False
+
 
             # Send button with delayed sending
-            send_button = ui.button('Send', on_click=lambda: asyncio.create_task(send_message())) \
+            send_button = ui.button('Send', on_click=lambda: asyncio.create_task(send_message(message_input.value, 'user'))) \
                 .classes('bg-primary text-white') \
                 .props('rounded dense')
             message_input.on('keydown', handle_key)
