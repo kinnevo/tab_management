@@ -17,10 +17,42 @@ import uuid
 import os
 import openai
 import asyncio
+from database import DatabaseManager
+
 
 
 # Store messages with metadata for chat history
 dialog_messages = []
+
+# Now you can use the DatabaseManager
+with DatabaseManager("my_database.db") as db:
+    # Create a table
+    db.create_table("users", [
+        "id INTEGER PRIMARY KEY",
+        "name TEXT NOT NULL",
+        "email TEXT UNIQUE"
+    ])
+    
+    # Add a user
+    # user_id = db.insert("users", {
+    #     "name": "John Doe",
+    #     "email": "john@example.com"
+    # })
+
+    db.create_table("messages", [
+        "id INTEGER PRIMARY KEY AUTOINCREMENT",
+        "user_id TEXT NOT NULL",
+        "session_id TEXT NOT NULL",
+        "sequence INTEGER NOT NULL",
+        "role TEXT NOT NULL CHECK (role IN ('system','user','assistant','function'))",
+        "message TEXT NOT NULL",
+        "function_name TEXT",
+        "function_args TEXT",
+        "function_response TEXT",
+        "created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
+        "UNIQUE (session_id, sequence)"
+    ])
+
 
 """ 
     {
@@ -61,7 +93,7 @@ dialog = [
     }
 ]
 
-user_info = {'name': None, 'avatar': None, 'user_id': 0, 'session_id': 0, 'dialog_id': 0}
+user_info = {'name': None, 'avatar': None, 'user_id': 0, 'session_id': 0, 'sequence': 0, 'dialog_id': 0}
 
 @ui.page('/')
 def main_page():
@@ -143,6 +175,15 @@ def main_page():
                 }
             })
 
+            # insert the assistant's response into the database
+            db.insert("messages", {
+                "user_id": user_info['user_id'],
+                "session_id": user_info['session_id'],
+                "sequence": len(dialog_messages),
+                "role": 'assistant',
+                "message": assistant_message
+            })
+
             # Display assistant's response directly
             if assistant_message:
                 with scroll.classes('bg-gray-200'):
@@ -175,6 +216,8 @@ def main_page():
 
     spinner = ui.spinner('audio', size='lg').classes('fixed bottom-1/2 left-1/2 transform -translate-x-1/2 translate-y-1/2 z-50')
     spinner.visible = False
+
+
 
     #Header
     with ui.header().classes('h-[10vh] bg-primary text-white'):
@@ -239,6 +282,16 @@ def main_page():
                         ui.markdown(user_message['content']).classes('ml-auto w-2/3 text-2xl p-2 m-1 bg-blue-500 text-white rounded-lg break-words')
         
                 scroll.scroll_to(percent=1e6)
+
+                # insert the user's prompt into the database
+                db.insert("messages", {
+                    "user_id": user_info['user_id'],
+                    "session_id": user_info['session_id'],
+                    "sequence": len(dialog_messages),
+                    "role": 'user',
+                    "message": input_text
+                })
+
                 message_input.value = ''
                 await call_chatgpt_api()
                 #spinner.visible = False
