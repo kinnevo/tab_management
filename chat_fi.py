@@ -25,7 +25,7 @@ async def chat_fi_page():
     @ui.refreshable
     async def load_conversation_history():
         empty_messages = []
-            return empty_messages
+        return empty_messages
         
         # Update the chat_messages list
     chat_messages.clear()

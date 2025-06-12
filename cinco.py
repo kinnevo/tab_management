@@ -256,7 +256,9 @@ def main_page():
                         return
                     if message_input.value.strip():
                         asyncio.create_task(send_message(message_input.value, 'user'))
+                        message_input.value = ''
                         # e.prevent_default()
+                        message_input.clear()
  
             message_input = ui.textarea(placeholder='Type your message...') \
                .classes('flex-grow mx-2 text-2xl') \
